@@ -1,5 +1,7 @@
 ---
-license: apache-2.0
+license: other
+license_name: microtensor-submission
+license_link: https://www.microtensor.cloud/terms
 base_model: <allowed base>
 tags:
 - microtensor

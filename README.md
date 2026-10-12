@@ -67,4 +67,4 @@ Your `main.py` listens on `MT_PORT` and may reach only four addresses: `MT_SLM_U
 
 ## Licence
 
-Code here is Apache 2.0. Your model keeps its base model's licence; each arena lists the licences it accepts.
+This template, your derivative of it and the model you submit are licensed under the Microtensor submission terms (see `LICENSE`); none of it is published under a free licence. Each arena lists which base model licences it accepts as inputs, because the base's terms must allow a commercial derivative.
