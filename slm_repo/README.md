@@ -1,20 +1,20 @@
 ---
 license: apache-2.0
-base_model: Qwen/Qwen2.5-Coder-7B-Instruct
+base_model: <allowed base>
 tags:
 - microtensor
-- sql_gen_s1
+- <arena>
 ---
 
-# mt_slm_sql_gen_s1
+# mt_slm_<arena>
 
-A specialised SQL generation model for the Microtensor `sql_gen_s1` arena.
+A specialised model for the Microtensor `<arena>` arena.
 
 | Field | Value |
 |---|---|
-| Base model | Qwen/Qwen2.5-Coder-7B-Instruct (Apache 2.0) |
+| Base model | an allowed base from the arena definition, with its licence |
 | Method | see `training/recipe.json` |
-| Arena | sql_gen_s1 |
+| Arena | <arena> |
 | Scores | filled in from the ledger after the first epoch |
 
 The root of this repository loads with `AutoModelForCausalLM`. Everything under `training/` is the record validators require and the archive keeps; it is never scored.

@@ -14,9 +14,11 @@ ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
 from escalation.patcher import repair  # noqa: E402
+from harness.adapters import load  # noqa: E402
 from harness.engine import run_harness  # noqa: E402
 
 CONFIG: dict[str, Any] = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
+ADAPTER = load(str(CONFIG.get("adapter") or "generic"))
 SLM_URL = os.environ["MT_SLM_URL"]
 ROUTER_URL = os.environ.get("MT_ROUTER_URL", "")
 TOOLS_URL = os.environ["MT_TOOLS_URL"]
@@ -59,14 +61,29 @@ def decide(query: str, draft: str) -> float:
     return float(answers[0]["probability"]) if answers else 0.0
 
 
+def _repair(payload: RepairIn | SystemIn, draft: Any, trace: str, errors: str) -> Any:
+    return repair(
+        payload.task,
+        draft,
+        trace,
+        errors,
+        adapter=ADAPTER,
+        relay_url=RELAY_URL,
+        ticket=payload.ticket,
+        model=PREFERRED_MODEL,
+    )
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok"}
+    return {"status": "ok", "adapter": ADAPTER.name}
 
 
 @app.post("/harness/run")
 def harness_run(payload: HarnessIn) -> dict[str, Any]:
-    result = run_harness(payload.task, slm_url=SLM_URL, tools_url=TOOLS_URL, config=CONFIG)
+    result = run_harness(
+        payload.task, adapter=ADAPTER, slm_url=SLM_URL, tools_url=TOOLS_URL, config=CONFIG
+    )
     return {
         "answer": result.answer,
         "self_check": {"pass": result.verified},
@@ -77,35 +94,19 @@ def harness_run(payload: HarnessIn) -> dict[str, Any]:
 
 @app.post("/escalation/repair")
 def escalation_repair(payload: RepairIn) -> dict[str, Any]:
-    answer = repair(
-        payload.task,
-        payload.draft,
-        payload.trace,
-        payload.errors,
-        relay_url=RELAY_URL,
-        ticket=payload.ticket,
-        model=PREFERRED_MODEL,
-    )
-    return {"answer": answer}
+    return {"answer": _repair(payload, payload.draft, payload.trace, payload.errors)}
 
 
 @app.post("/system/run")
 def system_run(payload: SystemIn) -> dict[str, Any]:
-    result = run_harness(payload.task, slm_url=SLM_URL, tools_url=TOOLS_URL, config=CONFIG)
+    result = run_harness(
+        payload.task, adapter=ADAPTER, slm_url=SLM_URL, tools_url=TOOLS_URL, config=CONFIG
+    )
     draft = result.answer
-    query = str(payload.task.get("question", ""))
-    probability = decide(query, json.dumps(draft) if not isinstance(draft, str) else draft)
+    probability = decide(ADAPTER.query(payload.task), ADAPTER.as_text(draft))
     if result.verified and probability >= payload.floor:
         return {"answer": draft, "route": "local", "p": probability}
-    answer = repair(
-        payload.task,
-        draft,
-        result.trace,
-        result.errors,
-        relay_url=RELAY_URL,
-        ticket=payload.ticket,
-        model=PREFERRED_MODEL,
-    )
+    answer = _repair(payload, draft, result.trace, result.errors)
     return {"answer": answer, "route": "escalated", "p": probability}
 
 

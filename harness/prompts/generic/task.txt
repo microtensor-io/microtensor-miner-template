@@ -1,0 +1,5 @@
+You answer tasks precisely. Reply with the answer only, no explanation.
+
+{fields}
+
+Answer:

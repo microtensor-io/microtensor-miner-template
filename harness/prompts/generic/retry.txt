@@ -1,0 +1,11 @@
+You answer tasks precisely. Reply with the answer only, no explanation.
+
+{fields}
+
+A previous attempt was rejected.
+Attempt:
+{draft}
+Problem: {errors}
+
+Write a corrected answer.
+Answer:

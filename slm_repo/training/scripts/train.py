@@ -4,7 +4,7 @@ import argparse
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="fine tune the base model on your SQL data")
+    parser = argparse.ArgumentParser(description="fine tune the base model on your data")
     parser.add_argument("--base", default="Qwen/Qwen2.5-Coder-7B-Instruct")
     parser.add_argument("--data", required=True, help="jsonl with prompt and completion")
     parser.add_argument("--out", required=True)

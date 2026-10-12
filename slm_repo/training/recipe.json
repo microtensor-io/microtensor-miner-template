@@ -1,8 +1,15 @@
 {
-  "base_model": "Qwen/Qwen2.5-Coder-7B-Instruct",
+  "base_model": "<allowed base>",
   "method": "distillation",
   "harness_aware": false,
-  "hyperparameters": {"epochs": 2, "learning_rate": 1e-5, "batch_size": 16, "max_length": 4096},
-  "seeds": [0],
+  "hyperparameters": {
+    "epochs": 2,
+    "learning_rate": 1e-05,
+    "batch_size": 16,
+    "max_length": 4096
+  },
+  "seeds": [
+    0
+  ],
   "compression": "awq-int4"
 }
