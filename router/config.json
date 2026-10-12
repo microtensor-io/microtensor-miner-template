@@ -1,0 +1,7 @@
+{
+  "architectures": ["DebertaV2ForSequenceClassification"],
+  "model_type": "deberta-v2",
+  "num_labels": 1,
+  "problem_type": "regression",
+  "note": "replace this file, model.safetensors and the tokenizer files with your trained router; see router/training/train_router.py"
+}

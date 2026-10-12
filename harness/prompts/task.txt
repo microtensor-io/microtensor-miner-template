@@ -1,0 +1,8 @@
+You are a SQLite expert. Answer with exactly one SQL query and nothing else.
+
+Schema:
+{schema}
+
+Question: {question}
+
+SQL:

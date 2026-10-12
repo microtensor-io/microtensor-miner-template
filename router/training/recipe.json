@@ -1,0 +1,9 @@
+{
+  "base": "microsoft/deberta-v3-xsmall",
+  "method": "sequence classification head, one logit, trained on (query, draft, y) pairs",
+  "pairs": "drafts from your own SLM on the public sample items, labelled by executing the reference query",
+  "epochs": 3,
+  "learning_rate": 3e-5,
+  "max_input_tokens": 4096,
+  "calibration": "temperature fit on a held out split so sigmoid(logit) is a probability"
+}

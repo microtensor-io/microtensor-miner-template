@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "arena": "sql_gen_s1",
+  "components": ["slm", "harness", "router", "escalation"],
+  "hardware_class": "gpu_24gb",
+  "slm": {
+    "repo": "<user>/mt_slm_sql_gen_s1",
+    "revision": "<40 hex git commit sha>",
+    "files": {"model.safetensors": "sha256:...", "config.json": "sha256:..."}
+  },
+  "files": {
+    "config.json": "sha256:...",
+    "main.py": "sha256:...",
+    "requirements.txt": "sha256:...",
+    "router/config.json": "sha256:...",
+    "router/model.safetensors": "sha256:...",
+    "harness/engine.py": "sha256:...",
+    "harness/verifier.py": "sha256:...",
+    "escalation/patcher.py": "sha256:..."
+  }
+}

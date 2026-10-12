@@ -1,0 +1,14 @@
+Schema:
+{schema}
+
+Question: {question}
+
+Draft query:
+{draft}
+
+Why the draft is wrong: {errors}
+
+Harness trace:
+{trace}
+
+Return the corrected query.
