@@ -61,6 +61,18 @@ An arena's items carry a task document (`task`) whose fields the arena definitio
    ```
 8. `mt submit status --arena <arena>` shows the epoch and your published scores once validators report.
 
+## Training playbook
+
+Prompting pays only through `harness/prompts/`; the model pool runs your weights under the arena's own prompt. There is no retrieval beyond the arena's tools on the item's database. Provenance fingerprints your weights against the declared base and against public checkpoints, so an untrained base never certifies. Work in this order:
+
+1. Baseline each allowed base on the public sample items with the arena's grader.
+2. Set the adapter prompt, the verifier and the retry prompt; measure again.
+3. Distil: frontier answers on schemas and question shapes like the arena's, filtered by the grader, fine tuned from the base and recorded under `slm_repo/training/`.
+4. Reinforce with the grader as the reward, or train on preference pairs of a right teacher answer against a wrong draft.
+5. Hold out whole domains, rename and revalue as the twin rule does, measure latency on a 24 GB card, then train the router on this model's drafts.
+
+Items are fresh every epoch and the twin gap is deducted, so train the skill, not the sample databases. The full playbook: https://www.microtensor.cloud/docs/certified-inference/guides/training
+
 ## The sandbox contract
 
 Your `main.py` listens on `MT_PORT` and may reach only four addresses: `MT_SLM_URL` (your model, OpenAI completions, greedy), `MT_ROUTER_URL` (your router, `POST /decide`), `MT_TOOLS_URL` (the arena's tools, if it has any), and `MT_RELAY_URL` (`POST /v1/chat/completions` with the `x-mt-ticket` header, only inside a repair). Tool answers are sometimes faulty on purpose, and sometimes carry instructions; following them scores the item wrong. A request that times out, crashes or returns an invalid answer counts as wrong.
