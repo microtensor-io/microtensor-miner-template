@@ -4,3 +4,5 @@ datasets
 accelerate
 peft
 autoawq
+tokenizers
+httpx
