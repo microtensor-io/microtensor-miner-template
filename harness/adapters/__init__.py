@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from harness.adapters.base import Adapter, Verdict
+from harness.adapters.context_compression import CompressionAdapter
 from harness.adapters.generic import GenericAdapter
 from harness.adapters.sql_generation import SqlAdapter
 
 ADAPTERS: dict[str, Adapter] = {
     GenericAdapter.name: GenericAdapter(),
     SqlAdapter.name: SqlAdapter(),
+    CompressionAdapter.name: CompressionAdapter(),
 }
 
 

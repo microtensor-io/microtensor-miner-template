@@ -38,8 +38,11 @@ An arena's items carry a task document (`task`) whose fields the arena definitio
 |---|---|---|
 | `generic` | any structured or free text task | non empty, length bound, refuses injected instructions |
 | `sql_generation` | a question plus a schema, answered with one SQLite query | parses with sqlglot, names only known tables, executes on the arena's sample database |
+| `context_compression` | a coding agent's session to compact into the five field JSON (`ctx_compress`) | one JSON object; folds extra keys into `summary` and object entries into plain strings; checks the token budget the instruction states |
 
 `config.json` names the adapter. Write your own under `harness/adapters/` for an arena with a different task: subclass `Adapter`, override `verify` (and `clean`, `query` or `render` when the task needs it), register it in `harness/adapters/__init__.py`, and add `harness/prompts/<name>/task.txt`, `retry.txt`, `escalation/prompts/<name>/system.txt`, `repair.txt`. Prompt templates may use any task field by name, `{fields}` for every field as `key: value` lines, `{task_json}`, and `{draft}`, `{errors}`, `{trace}` on retries and repairs.
+
+For `ctx_compress`, set `config.json` to `"adapter": "context_compression"`, `"slm": {"max_context": 32768, "max_new_tokens": 3072}`. The prompts use the Qwen chat format; for Phi 4 mini, change `harness/prompts/context_compression/*.txt` to its `<|system|>`, `<|user|>`, `<|assistant|>` and `<|end|>` markers.
 
 ## Steps
 
@@ -54,10 +57,11 @@ An arena's items carry a task document (`task`) whose fields the arena definitio
    mt submit validate --artifact . --slm ./slm_repo
    ```
 6. Push this repository to `huggingface.co/<user>/microtensor_<arena>`. Note the commit sha.
-7. Pay the fee and commit before the epoch's commit window closes:
+7. Commit before the epoch's commit window closes. If the arena charges a fee, pay it first and cite the transfer; a free arena (every testnet arena) needs only the commit:
    ```
    mt submit pay --arena <arena>
    mt submit commit --arena <arena> --hf-user <user> --artifact-sha <sha> --fee-block <block> --fee-index <index>
+   mt submit commit --arena <arena> --hf-user <user> --artifact-sha <sha>
    ```
 8. `mt submit status --arena <arena>` shows the epoch and your published scores once validators report.
 

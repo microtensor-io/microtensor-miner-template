@@ -1,0 +1,15 @@
+Instruction:
+{system}
+
+Session:
+{user}
+
+Draft compaction:
+{draft}
+
+Why the draft is wrong: {errors}
+
+Harness trace:
+{trace}
+
+Return the corrected compaction within the token budget the instruction states.
