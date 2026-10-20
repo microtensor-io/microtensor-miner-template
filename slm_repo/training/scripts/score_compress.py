@@ -13,6 +13,7 @@ from microtensor_subnet.validator.sandbox.judge import PROMPT
 
 LINES = (0.5, 0.6, 0.7, 0.8, 0.9)
 TOKENIZER = "Qwen/Qwen2.5-Coder-7B-Instruct"
+STOP = ["<|im_end|>", "<|endoftext|>", "<|end|>"]
 
 
 def post(url: str, body: dict[str, Any]) -> dict[str, Any]:
@@ -20,6 +21,14 @@ def post(url: str, body: dict[str, Any]) -> dict[str, Any]:
     response.raise_for_status()
     found: dict[str, Any] = response.json()
     return found
+
+
+def complete(url: str, model: str, prompt: str, max_tokens: int) -> str:
+    data = post(
+        url.rstrip("/") + "/v1/completions",
+        {"model": model, "prompt": prompt, "temperature": 0, "max_tokens": max_tokens, "stop": STOP},
+    )
+    return str((data.get("choices") or [{}])[0].get("text") or "")
 
 
 def chat(url: str, model: str, messages: list[dict[str, str]], max_tokens: int) -> str:
@@ -33,6 +42,8 @@ def chat(url: str, model: str, messages: list[dict[str, str]], max_tokens: int) 
 def main() -> None:
     parser = argparse.ArgumentParser(description="score a model on ctx_compress items the way validators do")
     parser.add_argument("--items", required=True, help="items.jsonl from mta dev")
+    parser.add_argument("--arena", default="ctx_compress")
+    parser.add_argument("--server", default="https://api.microtensor.cloud")
     parser.add_argument("--slm-url", required=True, help="your model behind an OpenAI compatible server")
     parser.add_argument("--slm-model", default="slm")
     parser.add_argument("--judge-url", required=True, help="Qwen/Qwen2.5-Coder-7B-Instruct, the probe agent")
@@ -47,6 +58,10 @@ def main() -> None:
     from tokenizers import Tokenizer
 
     tokenizer = Tokenizer.from_pretrained(TOKENIZER)
+    arena = httpx.get(f"{args.server.rstrip('/')}/v2/arenas/{args.arena}", timeout=60.0).json()
+    template = str((arena.get("definition") or {}).get("slm_prompt") or "")
+    if not template:
+        raise SystemExit(f"{args.arena} publishes no slm_prompt")
 
     def answer(summary: str, questions: list[str]) -> list[str]:
         return [
@@ -72,12 +87,8 @@ def main() -> None:
 
     def one(item: dict[str, Any]) -> dict[str, Any]:
         task = item["task"]
-        output = chat(
-            args.slm_url,
-            args.slm_model,
-            [{"role": "system", "content": task["system"]}, {"role": "user", "content": task["user"]}],
-            args.max_tokens,
-        )
+        prompt = template.replace("{system}", task["system"]).replace("{user}", task["user"])
+        output = complete(args.slm_url, args.slm_model, prompt, args.max_tokens)
         verdict = compress.grade(output, item["label"], task, judge)
         parts = dict(p.split(" ") for p in verdict.reason.split(", ")) if "recall" in verdict.reason else {}
         return {"item_id": item["item_id"], "score": verdict.score, "reason": verdict.reason, "parts": parts, "output": output}
