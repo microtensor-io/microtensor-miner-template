@@ -97,13 +97,15 @@ The template's `harness/`, `escalation/` and `main.py` follow them. `mt miner re
 
 Prompting pays only through `harness/prompts/`; the model pool runs your weights under the arena's own prompt. There is no retrieval beyond the arena's tools on the item's database. Provenance fingerprints your weights against the declared base and against public checkpoints, so an untrained base never certifies. Work in this order:
 
-1. Baseline each allowed base on the public sample items with the arena's grader.
+1. Baseline each allowed base on the arena's dev items with the arena's grader.
 2. Set the adapter prompt, the verifier and the retry prompt; measure again.
-3. Distil: frontier answers on schemas and question shapes like the arena's, filtered by the grader, fine tuned from the base and recorded under `slm_repo/training/`.
-4. Reinforce with the grader as the reward, or train on preference pairs of a right teacher answer against a wrong draft.
-5. Hold out whole domains, rename and revalue as the twin rule does, measure latency on a 24 GB card, then train the router on this model's drafts.
+3. Distil: `scripts/distill.py --arena <arena> --items dev/items.jsonl --teacher <model> --out pairs.jsonl` asks a teacher through your own provider key and keeps only the answers the arena grader accepts.
+4. Fine tune: `scripts/train.py --base <allowed base> --data pairs.jsonl --eval held_out.jsonl --out merged/ --run-id r1 --method lora` trains on completions only under the arena prompt, merges the adapter, and writes the run record under `training/runs/r1/`. Use `--method qlora --fp16` on a T4, `--method full` for a 1.5B model on a 24 GB card.
+5. Reinforce on the families that still fail, with the grader as the reward or as preference pairs of a passing teacher answer against a failing draft.
+6. Compress to the format your envelope group takes: `scripts/compress.py --model merged/ --out slm_repo/ --method awq --calibration pairs.jsonl` for a GPU group, `--method gguf --llama-cpp <checkout>` for a CPU or phone group. Score before and after with `scripts/score_compress.py` and write both into `training/compression/before_after.json`.
+7. Hold out whole domains, build twins as the twin rule does, run `mt envelope check` and `mt check-model`, then train the router on this model's drafts.
 
-Items are fresh every epoch and the twin gap is deducted, so train the skill, not the sample databases. The full playbook: https://www.microtensor.cloud/docs/certified-inference/guides/training
+Items are fresh every epoch and the twin gap is deducted, so train the skill, not the sample data. The full playbook, with the hardware each step needs: https://www.microtensor.cloud/docs/certified-inference/guides/training
 
 ## The sandbox contract
 
