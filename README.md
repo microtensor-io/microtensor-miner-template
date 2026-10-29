@@ -4,16 +4,16 @@ A working submission for any Microtensor arena, in the two repository layout val
 
 ## What a submission is
 
-| Component | Lives in | What validators do with it |
+| Component | Lives in | What happens to it |
 |---|---|---|
-| Specialised model (SLM) | your `mt_slm_<arena>` repository | load it themselves and serve it to your code |
-| Harness | `harness/` here | run `main.py` in a sandbox with no network except the validator's services |
-| Router | `router/` here | load it themselves as a one logit sequence classifier and serve `/decide` |
-| Frontier repair | `escalation/` here | run it with a ticket that pays for frontier calls through the relay |
+| Specialised model (SLM) | your `mt_slm_<arena>` repository | served by the official engine image on your GPU during the window; validators spot check its calls on the same hardware profile |
+| Harness | `harness/` here | `main.py` runs in the official sandbox on your GPU with no network except the recording gateway; validators replay it on CPU against the transcript |
+| Router | `router/` here | loaded by validators from the mirror as a one logit sequence classifier for the router pass |
+| Frontier repair | `escalation/` here | runs in the sandbox with a ticket that pays for frontier calls through the relay; the signed receipts are checked on replay |
 
 You may submit any subset; `manifest.json` names which. Validators fill the rest with the arena's reference components and pay you from the pools you compete in.
 
-On an arena whose definition carries `evaluation.mode: miner`, the model and the harness run on your own GPU instead: you declare a hardware profile, run the official images during the evaluation window and upload a transcript, and validators replay the harness on CPU and spot check the model calls on the same profile. Arenas without the `evaluation` block keep the flow in the table above, where validators serve everything themselves. The docs: https://www.microtensor.cloud/docs/certified-inference/system/decentralised-evaluation
+You declare a hardware profile, run the official images on your own GPU during the evaluation window and upload a transcript; validators replay the harness on CPU and spot check the model calls on the same profile. The docs: https://www.microtensor.cloud/docs/certified-inference/system/decentralised-evaluation
 
 ## Repository layout
 
@@ -52,23 +52,22 @@ For `ctx_compress`, set `config.json` to `"adapter": "context_compression"`, `"s
 2. Train and compress your model from an allowed base, write the training record, push `slm_repo/` to `huggingface.co/<user>/mt_slm_<arena>`. Note the commit sha.
 3. Train the router (`router/training/train_router.py`) on drafts from your own model, labelled by the arena's grader on the public sample items. Put the weights and tokenizer under `router/`.
 4. Set `"adapter"` in `config.json`, adjust the prompts and the verifier. Keep `harness/` and `escalation/` under 2 MB together.
-5. Write the manifest and check both repositories. On a miner mode arena pick the hardware profile of the GPU you will run on (`evaluation.profiles` in the definition lists the allowed ones, https://www.microtensor.cloud/docs/certified-inference/system/hardware-profiles describes them), pass it to the manifest, and run the pre-flight check before you commit:
+5. Write the manifest and check both repositories. Pick the hardware profile of the GPU you will run on (`evaluation.profiles` in the definition lists the allowed ones, https://www.microtensor.cloud/docs/certified-inference/system/hardware-profiles describes them), pass it to the manifest, and run the pre-flight check before you commit:
    ```
    mt submit manifest --artifact . --arena <arena> --slm ./slm_repo \
      --slm-repo <user>/mt_slm_<arena> --slm-revision <sha> --profile <profile>
    mt submit validate --artifact . --slm ./slm_repo
    mt check-model --slm ./slm_repo --profile <profile>
    ```
-   `--profile` writes `schema_version: 2` with `profile`, `weights_sha256` and the official image digest; leave it out on an arena without the `evaluation` block. `check-model` dry loads the config, tokenizer and safetensors headers on CPU and prints `ok` or the reason the mirror would refuse the model; a model that fails it is never evaluated.
+   `--profile` writes `schema_version: 2` with `profile`, `weights_sha256` and the official image digest. `check-model` dry loads the config, tokenizer and safetensors headers on CPU and prints `ok` or the reason the mirror would refuse the model; a model that fails it is never evaluated.
 6. Push this repository to `huggingface.co/<user>/microtensor_<arena>`. Note the commit sha.
-7. Commit before the epoch's commit window closes. If the arena charges a fee, pay it first and cite the transfer; a free arena (every testnet arena) needs only the commit. On a miner mode arena the commit carries the same profile as the manifest and cannot change after Freeze 1:
+7. Commit before the epoch's commit window closes. If the arena charges a fee, pay it first and cite the transfer; a free arena (every testnet arena) needs only the commit. The commit carries the same profile as the manifest and cannot change after Freeze 1:
    ```
    mt submit pay --arena <arena>
-   mt submit commit --arena <arena> --hf-user <user> --artifact-sha <sha> --fee-block <block> --fee-index <index>
-   mt submit commit --arena <arena> --hf-user <user> --artifact-sha <sha>
+   mt submit commit --arena <arena> --hf-user <user> --artifact-sha <sha> --profile <profile> --fee-block <block> --fee-index <index>
    mt submit commit --arena <arena> --hf-user <user> --artifact-sha <sha> --profile <profile>
    ```
-8. On a miner mode arena, run the evaluation yourself during the window and upload the transcript before Freeze 2. After the commit window closes the server mirrors your frozen files and, at window open, publishes the items. On a machine with your profile's GPU, start the official runner image from the subnet repository's `deploy/docker-compose.miner.yml` (it needs the Docker socket, the GPU, `/var/lib/microtensor` and your wallet):
+8. Run the evaluation yourself during the window and upload the transcript before Freeze 2. After the commit window closes the server mirrors your frozen files and, at window open, publishes the items. On a machine with your profile's GPU, start the official runner image from the subnet repository's `deploy/docker-compose.miner.yml` (it needs the Docker socket, the GPU, `/var/lib/microtensor` and your wallet):
    ```
    git clone https://github.com/microtensor-io/microtensor-subnet
    cd microtensor-subnet/deploy
@@ -84,7 +83,7 @@ For `ctx_compress`, set `config.json` to `"adapter": "context_compression"`, `"s
 
 ## Determinism rules
 
-On a miner mode arena validators replay `main.py` on CPU against the transcript your run produced, and every request it makes must match the recording exactly and in order. Code that breaks one of these rules fails replay and scores zero for the epoch:
+Validators replay `main.py` on CPU against the transcript your run produced, and every request it makes must match the recording exactly and in order. Code that breaks one of these rules fails replay and scores zero for the epoch:
 
 - No clock reads beyond the frozen clock. The sandbox's time is fixed; no wall time, timers or timeouts of your own.
 - Randomness only from the provided seed. Every request carries `seed`; never use `random`, `numpy.random` or `os.urandom` unseeded.
@@ -109,7 +108,7 @@ Items are fresh every epoch and the twin gap is deducted, so train the skill, no
 
 ## The sandbox contract
 
-Your `main.py` listens on `MT_PORT` and may reach only four addresses: `MT_SLM_URL` (your model, OpenAI completions, greedy), `MT_ROUTER_URL` (your router, `POST /decide`), `MT_TOOLS_URL` (the arena's tools, if it has any), and `MT_RELAY_URL` (`POST /v1/chat/completions` with the `x-mt-ticket` header, only inside a repair). Tool answers are sometimes faulty on purpose, and sometimes carry instructions; following them scores the item wrong. A request that times out, crashes or returns an invalid answer counts as wrong. On a miner mode arena the same four addresses point at the recording gateway inside the official image, the clock is frozen, and each request body carries the item's `seed`.
+Your `main.py` listens on `MT_PORT` and may reach only four addresses: `MT_SLM_URL` (your model, OpenAI completions, greedy), `MT_ROUTER_URL` (your router, `POST /decide`), `MT_TOOLS_URL` (the arena's tools, if it has any), and `MT_RELAY_URL` (`POST /v1/chat/completions` with the `x-mt-ticket` header, only inside a repair). Tool answers are sometimes faulty on purpose, and sometimes carry instructions; following them scores the item wrong. A request that times out, crashes or returns an invalid answer counts as wrong. The four addresses point at the recording gateway inside the official image, the clock is frozen, and each request body carries the item's `seed`.
 
 ## Licence
 
