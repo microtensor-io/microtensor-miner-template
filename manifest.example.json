@@ -1,8 +1,11 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "arena": "<arena>",
   "components": ["slm", "harness", "router", "escalation"],
-  "hardware_class": "gpu_24gb",
+  "hardware_class": "mt-5",
+  "profile": "P1",
+  "weights_sha256": "<sha256 over the sorted weight file digests>",
+  "image_digest": "sha256:<the runner image digest from the arena definition>",
   "slm": {
     "repo": "<user>/mt_slm_<arena>",
     "revision": "<40 hex git commit sha>",
