@@ -48,8 +48,8 @@ For `ctx_compress`, set `config.json` to `"adapter": "context_compression"`, `"s
 
 ## Steps
 
-1. Read the arena definition: `GET https://api.microtensor.cloud/v2/arenas/<arena>` gives the task, the allowed bases and licences, the tools, the budgets and the item counts.
-2. Train and compress your model from an allowed base, write the training record, push `slm_repo/` to `huggingface.co/<user>/mt_slm_<arena>`. Note the commit sha.
+1. Read the arena definition: `GET https://api.microtensor.cloud/v2/arenas/<arena>` gives the task, the base model and its licence, the tools, the budgets and the item counts.
+2. Train and compress your model from the arena's base model, write the training record, push `slm_repo/` to `huggingface.co/<user>/mt_slm_<arena>`. Note the commit sha.
 3. Train the router (`router/training/train_router.py`) on drafts from your own model, labelled by the arena's grader on the public sample items. Put the weights and tokenizer under `router/`.
 4. Set `"adapter"` in `config.json`, adjust the prompts and the verifier. Keep `harness/` and `escalation/` under 2 MB together.
 5. Write the manifest and check both repositories. Pick the hardware profile of the GPU you will run on (`evaluation.profiles` in the definition lists the allowed ones, https://www.microtensor.cloud/docs/certified-inference/system/hardware-profiles describes them), pass it to the manifest, and run the pre-flight check before you commit:
@@ -96,10 +96,10 @@ The template's `harness/`, `escalation/` and `main.py` follow them. `mt miner re
 
 Prompting pays only through `harness/prompts/`; the model pool runs your weights under the arena's own prompt. There is no retrieval beyond the arena's tools on the item's database. Provenance fingerprints your weights against the declared base and against public checkpoints, so an untrained base never certifies. Work in this order:
 
-1. Baseline each allowed base on the arena's dev items with the arena's grader.
+1. Measure the arena's base model on the dev items with the arena's grader; that is the score to beat.
 2. Set the adapter prompt, the verifier and the retry prompt; measure again.
 3. Distil: `scripts/distill.py --arena <arena> --items dev/items.jsonl --teacher <model> --out pairs.jsonl` asks a teacher through your own provider key and keeps only the answers the arena grader accepts.
-4. Fine tune: `scripts/train.py --base <allowed base> --data pairs.jsonl --eval held_out.jsonl --out merged/ --run-id r1 --method lora` trains on completions only under the arena prompt, merges the adapter, and writes the run record under `training/runs/r1/`. Use `--method qlora --fp16` on a T4, `--method full` for a 1.5B model on a 24 GB card.
+4. Fine tune: `scripts/train.py --base <base model> --data pairs.jsonl --eval held_out.jsonl --out merged/ --run-id r1 --method lora` trains on completions only under the arena prompt, merges the adapter, and writes the run record under `training/runs/r1/`. Use `--method qlora --fp16` on a T4, `--method full` for a 1.5B model on a 24 GB card.
 5. Reinforce on the families that still fail, with the grader as the reward or as preference pairs of a passing teacher answer against a failing draft.
 6. Compress to the format your envelope group takes: `scripts/compress.py --model merged/ --out slm_repo/ --method awq --calibration pairs.jsonl` for a GPU group, `--method gguf --llama-cpp <checkout>` for a CPU or phone group. Score before and after with `scripts/score_compress.py` and write both into `training/compression/before_after.json`.
 7. Hold out whole domains, build twins as the twin rule does, run `mt envelope check` and `mt check-model`, then train the router on this model's drafts.
