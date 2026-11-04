@@ -2,14 +2,16 @@ from __future__ import annotations
 
 from typing import Any
 
-from harness.adapters.base import Adapter, Verdict
+from harness.adapters.base import Adapter, Reply, Verdict
 
 
 class GenericAdapter(Adapter):
     name = "generic"
     max_chars = 4000
 
-    def verify(self, text: str, task: dict[str, Any], tools_url: str) -> Verdict:
+    def verify(
+        self, text: str, task: dict[str, Any], tools_url: str, reply: Reply | None = None
+    ) -> Verdict:
         answer = self.clean(text)
         if not answer:
             return Verdict(False, "", "empty answer")

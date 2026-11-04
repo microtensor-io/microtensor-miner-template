@@ -17,6 +17,39 @@ def calibration(path: str, count: int, seed: int) -> list[str]:
     return texts[:count]
 
 
+def model_type(model: str) -> str:
+    from transformers import AutoConfig
+
+    return str(AutoConfig.from_pretrained(model).model_type)
+
+
+def unsupported(method: str, model: str) -> str:
+    kind = model_type(model)
+    try:
+        if method == "awq":
+            from awq.models.auto import AWQ_CAUSAL_LM_MODEL_MAP as known
+        else:
+            from gptqmodel.models.auto import MODEL_MAP as known
+    except ImportError:
+        return ""
+    if kind in known:
+        return ""
+    return (
+        f"{method} does not support the {kind} architecture; ship the merged weights with --method none "
+        "when they fit your envelope group, or pick another method"
+    )
+
+
+def copy_weights(model: str, out: Path) -> None:
+    source = Path(model)
+    if not source.is_dir():
+        raise SystemExit("--method none needs --model to be the merged model folder")
+    out.mkdir(parents=True, exist_ok=True)
+    for file in source.iterdir():
+        if file.is_file() and file.suffix in (".safetensors", ".json", ".model", ".txt", ".jinja"):
+            shutil.copy2(file, out / file.name)
+
+
 def quantise_awq(model: str, out: Path, samples: list[str], bits: int, group: int) -> None:
     from awq import AutoAWQForCausalLM
     from transformers import AutoTokenizer
@@ -65,7 +98,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="compress the merged model to the format your envelope group takes")
     parser.add_argument("--model", required=True, help="the merged model folder from train.py")
     parser.add_argument("--out", required=True, help="the folder that becomes slm_repo/ weights")
-    parser.add_argument("--method", default="awq", choices=["awq", "gptq", "gguf"])
+    parser.add_argument(
+        "--method",
+        default="awq",
+        choices=["awq", "gptq", "gguf", "none"],
+        help="none copies the merged bf16 weights as they are",
+    )
     parser.add_argument("--bits", type=int, default=4)
     parser.add_argument("--group-size", type=int, default=128)
     parser.add_argument("--gguf-type", default="Q4_K_M", choices=["Q4_K_M", "Q5_K_S", "Q5_K_M", "Q6_K", "Q8_0"])
@@ -77,6 +115,10 @@ def main() -> None:
 
     if args.bits < 4:
         raise SystemExit("nothing below 4 bit is accepted in any envelope group")
+    if args.method in ("awq", "gptq"):
+        problem = unsupported(args.method, args.model)
+        if problem:
+            raise SystemExit(problem)
     out = Path(args.out)
     samples: list[str] = []
     calibration_sha = ""
@@ -89,6 +131,8 @@ def main() -> None:
         quantise_awq(args.model, out, samples, args.bits, args.group_size)
     elif args.method == "gptq":
         quantise_gptq(args.model, out, samples, args.bits, args.group_size)
+    elif args.method == "none":
+        copy_weights(args.model, out)
     else:
         if not args.llama_cpp:
             raise SystemExit("gguf needs --llama-cpp pointing at a llama.cpp checkout")
@@ -96,8 +140,8 @@ def main() -> None:
 
     record: dict[str, Any] = {
         "method": args.method,
-        "bits": args.bits if args.method != "gguf" else None,
-        "group_size": args.group_size if args.method != "gguf" else None,
+        "bits": args.bits if args.method in ("awq", "gptq") else None,
+        "group_size": args.group_size if args.method in ("awq", "gptq") else None,
         "gguf_type": args.gguf_type if args.method == "gguf" else None,
         "calibration_samples": len(samples),
         "calibration_data_sha256": calibration_sha,
@@ -109,7 +153,7 @@ def main() -> None:
     before_after = folder / "before_after.json"
     if not before_after.is_file():
         before_after.write_text(
-            json.dumps({"before": {}, "after": {}, "note": "fill both from score_compress.py on the held out items"}, indent=2)
+            json.dumps({"before": {}, "after": {}, "note": "fill both with score_compress.py --summary on the held out items"}, indent=2)
             + "\n",
             encoding="utf-8",
         )

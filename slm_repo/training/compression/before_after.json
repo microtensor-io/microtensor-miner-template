@@ -1,1 +1,1 @@
-{"before": {"execution_accuracy": 0.0}, "after": {"execution_accuracy": 0.0}}
+{"before": {}, "after": {}, "note": "fill both with score_compress.py --summary on the held out items, before and after compression"}

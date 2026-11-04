@@ -1,9 +1,9 @@
-<|im_start|>system
-{system}<|im_end|>
-<|im_start|>user
-{user}<|im_end|>
-<|im_start|>assistant
-{draft}<|im_end|>
-<|im_start|>user
-That reply was rejected: {errors}. Reply again with only the JSON object with exactly the five fields summary, files_touched, open_tasks, errors and decisions, every list entry a plain string.<|im_end|>
-<|im_start|>assistant
+<|start_of_role|>system<|end_of_role|>{system}<|end_of_text|>
+<|start_of_role|>user<|end_of_role|>This draft summary of the session was rejected: {errors}
+
+<draft>
+{draft}
+</draft>
+
+Rewrite it as the final summary: plain markdown, the nine headings from the instruction in order, each on its own line starting with '## ', nothing before the first heading, no JSON, within the token budget the instruction states. Keep every file path, function name, command and error message exactly as the draft writes it, and add nothing the draft does not say.<|end_of_text|>
+<|start_of_role|>assistant<|end_of_role|>

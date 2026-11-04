@@ -52,16 +52,25 @@ class SystemIn(BaseModel):
 def decide(query: str, draft: str) -> float:
     if not ROUTER_URL:
         return 1.0
-    with httpx.Client(timeout=30.0) as http:
-        response = http.post(
-            ROUTER_URL.rstrip("/") + "/decide", json={"input": {"query": query, "draft": draft}}
-        )
-    response.raise_for_status()
-    answers = response.json().get("answers") or []
-    return float(answers[0]["probability"]) if answers else 0.0
+    try:
+        with httpx.Client(timeout=30.0) as http:
+            response = http.post(
+                ROUTER_URL.rstrip("/") + "/decide", json={"input": {"query": query, "draft": draft}}
+            )
+    except httpx.HTTPError:
+        return 0.0
+    if response.status_code == 404:
+        return 1.0
+    if response.status_code != 200:
+        return 0.0
+    try:
+        answers = response.json().get("answers") or []
+        return float(answers[0]["probability"]) if answers else 0.0
+    except (ValueError, TypeError, KeyError, AttributeError, IndexError):
+        return 0.0
 
 
-def _repair(payload: RepairIn | SystemIn, draft: Any, trace: str, errors: str) -> Any:
+def _repair(payload: RepairIn | SystemIn, draft: Any, trace: str, errors: str, fitted: bool = False) -> Any:
     return repair(
         payload.task,
         draft,
@@ -71,6 +80,7 @@ def _repair(payload: RepairIn | SystemIn, draft: Any, trace: str, errors: str) -
         relay_url=RELAY_URL,
         ticket=payload.ticket,
         model=PREFERRED_MODEL,
+        fitted=fitted,
     )
 
 
@@ -106,7 +116,7 @@ def system_run(payload: SystemIn) -> dict[str, Any]:
     probability = decide(ADAPTER.query(payload.task), ADAPTER.as_text(draft))
     if result.verified and probability >= payload.floor:
         return {"answer": draft, "route": "local", "p": probability}
-    answer = _repair(payload, draft, result.trace, result.errors)
+    answer = _repair(payload, draft, result.trace, result.errors, fitted=True)
     return {"answer": answer, "route": "escalated", "p": probability}
 
 

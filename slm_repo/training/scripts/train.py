@@ -20,9 +20,38 @@ def read_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
 
 
+def lora_targets(model: Any) -> list[str] | str:
+    names = {name.rsplit(".", 1)[-1] for name, module in model.named_modules() if isinstance(module, torch.nn.Linear)}
+    return list(TARGETS) if set(TARGETS) <= names else "all-linear"
+
+
+def fit_length(data: Any, tokenizer: Any, wanted: int) -> tuple[Any, int]:
+    def measure(batch: dict[str, list[str]]) -> dict[str, list[int]]:
+        prompts = tokenizer(batch["prompt"])["input_ids"]
+        completions = tokenizer(batch["completion"], add_special_tokens=False)["input_ids"]
+        return {"tokens": [len(p) + len(c) + 1 for p, c in zip(prompts, completions, strict=True)]}
+
+    data = data.map(measure, batched=True)
+    longest = max(max(data[split]["tokens"]) for split in data)
+    length = wanted or longest
+    for split in list(data):
+        before = len(data[split])
+        data[split] = data[split].filter(lambda row: row["tokens"] <= length)
+        if len(data[split]) < before:
+            print(f"{split}: left out {before - len(data[split])} of {before} pairs longer than {length} tokens")
+    if not len(data["train"]):
+        raise SystemExit(f"no training pair fits in {length} tokens; raise --max-length")
+    print(f"training at max length {length} tokens; the longest pair is {longest}")
+    return data.remove_columns("tokens"), length
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="fine tune an allowed base on grader filtered pairs")
-    parser.add_argument("--base", required=True, help="an allowed base, for example Qwen/Qwen2.5-Coder-1.5B-Instruct")
+    parser.add_argument(
+        "--base",
+        required=True,
+        help="the arena's base from slm.bases in its definition, for example ibm-granite/granite-4.0-h-micro for ctx_compress",
+    )
     parser.add_argument("--data", required=True, help="jsonl of {prompt, completion} from distill.py")
     parser.add_argument("--eval", default="", help="held out jsonl of the same shape")
     parser.add_argument("--out", required=True, help="where the merged model and tokenizer go")
@@ -31,7 +60,12 @@ def main() -> None:
     parser.add_argument("--rank", type=int, default=32)
     parser.add_argument("--epochs", type=float, default=2.0)
     parser.add_argument("--lr", type=float, default=0.0, help="default 1e-5 full, 1.5e-4 lora and qlora")
-    parser.add_argument("--max-length", type=int, default=8192)
+    parser.add_argument(
+        "--max-length",
+        type=int,
+        default=0,
+        help="tokens per pair; 0 uses the longest pair, and pairs longer than a set value are left out, never cut",
+    )
     parser.add_argument("--batch", type=int, default=1)
     parser.add_argument("--accumulate", type=int, default=8)
     parser.add_argument("--seed", type=int, default=0)
@@ -65,13 +99,14 @@ def main() -> None:
     )
 
     data = load_dataset("json", data_files={"train": args.data, **({"eval": args.eval} if args.eval else {})})
+    data, max_length = fit_length(data, tokenizer, args.max_length)
     peft_config = None
     if args.method != "full":
         peft_config = LoraConfig(
             r=args.rank,
             lora_alpha=args.rank * 2,
             lora_dropout=0.05,
-            target_modules=list(TARGETS),
+            target_modules=lora_targets(model),
             task_type="CAUSAL_LM",
         )
 
@@ -84,7 +119,7 @@ def main() -> None:
         per_device_train_batch_size=args.batch,
         gradient_accumulation_steps=args.accumulate,
         gradient_checkpointing=True,
-        max_length=args.max_length,
+        max_length=max_length,
         completion_only_loss=True,
         packing=False,
         bf16=not args.fp16,
@@ -126,7 +161,7 @@ def main() -> None:
                 "rank": args.rank if args.method != "full" else None,
                 "epochs": args.epochs,
                 "learning_rate": lr,
-                "max_length": args.max_length,
+                "max_length": max_length,
                 "batch_size": args.batch * args.accumulate,
                 "seed": args.seed,
                 "data": args.data,
