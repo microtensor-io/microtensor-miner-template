@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+from arena_grading import load_items
 
 FENCE = re.compile(r"^```[A-Za-z]*\s*|\s*```$")
 
@@ -51,19 +52,10 @@ def grader_for(arena: dict[str, Any]) -> Any:
     definition = arena.get("definition") or {}
     name = str(definition.get("grader") or "")
     if name == "context_compression":
+        from arena_grading import compress_judge
         from microtensor_subnet.validator import compress
 
-        grading = definition.get("grading") or {}
-        from tokenizers import Tokenizer
-
-        tokenizer = Tokenizer.from_pretrained(str(grading.get("tokenizer") or "Qwen/Qwen2.5-Coder-7B-Instruct"))
-        judge = compress.Judge(
-            count_tokens=lambda text: len(tokenizer.encode(text).ids),
-            answer=lambda summary, questions: ["" for _ in questions],
-            pass_threshold=float(grading.get("pass_threshold") or 0.5),
-            min_output_tokens=int(grading.get("min_output_tokens") or 300),
-            max_output_share=float(grading.get("max_output_share") or 0.1),
-        )
+        judge = compress_judge(definition, lambda summary, questions: ["" for _ in questions])
 
         def grade(output: str, label: dict[str, Any], task: dict[str, Any]) -> tuple[bool, str]:
             verdict = compress.grade(output, label, task, judge)
@@ -87,7 +79,11 @@ def grader_for(arena: dict[str, Any]) -> Any:
 def main() -> None:
     parser = argparse.ArgumentParser(description="write teacher answers for dev items and keep the ones the grader accepts")
     parser.add_argument("--arena", required=True)
-    parser.add_argument("--items", required=True, help="items.jsonl built with the arena dev tooling, with task and label")
+    parser.add_argument(
+        "--items",
+        required=True,
+        help="items.jsonl from mta dev, a folder or file of the arena's dev parquet, or its Hugging Face dataset name",
+    )
     parser.add_argument("--out", required=True, help="jsonl of {prompt, completion} for train.py")
     parser.add_argument("--teacher", required=True, help="teacher model id at your provider")
     parser.add_argument("--base-url", default=os.environ.get("TEACHER_BASE_URL", "https://openrouter.ai/api/v1"))
@@ -110,8 +106,7 @@ def main() -> None:
     max_tokens = args.max_tokens or int((definition.get("generation") or {}).get("max_tokens") or 1024)
     grade = grader_for(arena)
 
-    rows = [json.loads(line) for line in Path(args.items).read_text(encoding="utf-8").splitlines() if line.strip()]
-    items = [row for row in rows if not row.get("twin_of")]
+    items = [row for row in load_items(args.items) if not row.get("twin_of")]
     if args.limit:
         items = items[: args.limit]
 

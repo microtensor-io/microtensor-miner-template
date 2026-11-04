@@ -12,4 +12,4 @@ Why the draft is wrong: {errors}
 Harness trace:
 {trace}
 
-Return the corrected compaction within the token budget the instruction states.
+Return the corrected summary with the nine headings in order. Your reply is cut off after {limit} tokens, so keep the whole summary well within {limit} tokens even when the instruction allows more, and write every one of the nine headings.

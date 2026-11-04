@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from harness.adapters.base import Adapter, Verdict
+from harness.adapters.base import Adapter, Reply, Verdict
 from harness.adapters.context_compression import CompressionAdapter
 from harness.adapters.generic import GenericAdapter
 from harness.adapters.sql_generation import SqlAdapter
@@ -19,4 +19,4 @@ def load(name: str) -> Adapter:
         raise ValueError(f"unknown adapter {name!r}; one of {sorted(ADAPTERS)}") from exc
 
 
-__all__ = ["ADAPTERS", "Adapter", "Verdict", "load"]
+__all__ = ["ADAPTERS", "Adapter", "Reply", "Verdict", "load"]

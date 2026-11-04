@@ -6,7 +6,7 @@ from typing import Any
 
 import httpx
 
-from harness.adapters.base import Adapter, Verdict, strip_fences
+from harness.adapters.base import Adapter, Reply, Verdict, strip_fences
 
 _FORBIDDEN = re.compile(r"\b(attach|detach|pragma|vacuum|insert|update|delete|drop|alter)\b", re.I)
 
@@ -38,7 +38,9 @@ class SqlAdapter(Adapter):
         body = re.sub(r"^\s*(sql|sqlite|query|answer)\s*:\s*", "", body, flags=re.I)
         return body.split(";", 1)[0].strip()
 
-    def verify(self, text: str, task: dict[str, Any], tools_url: str) -> Verdict:
+    def verify(
+        self, text: str, task: dict[str, Any], tools_url: str, reply: Reply | None = None
+    ) -> Verdict:
         sql = self.clean(text)
         if not sql:
             return Verdict(False, "", "empty answer")
